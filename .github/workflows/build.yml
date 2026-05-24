@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [K2P, K2P-NANO, K2P-USB]
+        target: [K2P]
         toolchain: [mipsel-linux-musl]
     steps:
       - uses: actions/checkout@v4
@@ -32,13 +32,9 @@ jobs:
       - name: Build
         run: |
           make ${{ matrix.target }} TOOLCHAIN=${{ matrix.toolchain }}
-          if [ "${{ matrix.target }}" = "K2P-NANO" ]; then
-            image=$(ls trunk/images/*.trx)
-            mv $image $(echo $image | sed 's/K2P/K2P-NANO/')
-          fi
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.toolchain }}
+          name: ${{ matrix.target }}
           path: trunk/images/*.trx
   publish:
     needs: [build]
@@ -59,5 +55,5 @@ jobs:
         with:
           commit: ${{ github.sha }}
           tag: ${{ env.TAG_NAME }}
-          artifacts: "mipsel-linux-musl/*.trx"
+          artifacts: "*/*.trx"
           allowUpdates: true
