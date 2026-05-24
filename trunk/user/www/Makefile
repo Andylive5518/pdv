@@ -6,15 +6,13 @@ ROMFS_DIR = $(ROOTDIR)/romfs
 
 include $(BOARD_CONFIG)
 
-PROJECT_HOME_URL="https:\/\/bitbucket.org\/padavan\/rt-n56u\/"
-PROJECT_HOME_URL_MOD="https:\/\/github.com\/tsl0922\/padavan\/"
+PROJECT_HOME_URL="https:\/\/github.com\/Andylive5518\/pdv\/"
 
-LABEL_COPYRIGHT_TEXT='© 2011-2021 <a href="https:\/\/bitbucket.org\/padavan\/rt-n56u" target="blank">Padavan<\/a> \& N56U project community \& <a href="https:\/\/github.com\/hanwckf\/rt-n56u" target="blank">hanwckf<\/a> \& <a href="https:\/\/github.com\/tsl0922\/padavan" target="blank">tsl0922<\/a>'
+LABEL_COPYRIGHT_TEXT='© 2011-2021 <a href="https:\/\/bitbucket.org\/padavan\/rt-n56u" target="blank">Padavan<\/a> \& N56U project community'
 
 BOARD_PATTERN=s/ZVMODELVZ/$(CONFIG_FIRMWARE_PRODUCT_ID)/g
 COPYR_PATTERN=s/ZVCOPYRVZ/$(LABEL_COPYRIGHT_TEXT)/g
 DWURL_PATTERN=s/ZVDWURLVZ/$(PROJECT_HOME_URL)/g
-DWURL_MOD_PATTERN=s/ZVMODWURLVZ/$(PROJECT_HOME_URL_MOD)/g
 
 WEBUI_NAME=n56u_ribbon_fixed
 
@@ -118,13 +116,11 @@ ifeq ($(CONFIG_FIRMWARE_INCLUDE_LANG_CN),y)
 	sed $(BOARD_PATTERN) -i $(ROMFS_DIR)/www/CN.dict
 	sed $(COPYR_PATTERN) -i $(ROMFS_DIR)/www/CN.dict
 	sed $(DWURL_PATTERN) -i $(ROMFS_DIR)/www/CN.dict
-	sed $(DWURL_MOD_PATTERN) -i $(ROMFS_DIR)/www/CN.dict
 endif
 	cat $(ROMFS_DIR)/www/EN.header dict/EN.footer > $(ROMFS_DIR)/www/EN.dict
 	sed $(BOARD_PATTERN) -i $(ROMFS_DIR)/www/EN.dict
 	sed $(COPYR_PATTERN) -i $(ROMFS_DIR)/www/EN.dict
 	sed $(DWURL_PATTERN) -i $(ROMFS_DIR)/www/EN.dict
-	sed $(DWURL_MOD_PATTERN) -i $(ROMFS_DIR)/www/EN.dict
 	rm -f $(ROMFS_DIR)/www/EN.header
 	rm -f $(ROMFS_DIR)/www/bootstrap/js/bootstrap.js
 	rm -f $(ROMFS_DIR)/www/bootstrap/js/engage.itoggle.js
