@@ -1,9 +1,6 @@
 name: build
 
 on: 
-  push:
-    branches:
-    - "kvr"
   workflow_dispatch:
 
 jobs:
