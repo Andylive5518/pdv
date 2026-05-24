@@ -3,7 +3,7 @@ name: build
 on: 
   push:
     branches:
-    - "*"
+    - "plan-b-kvr"
   workflow_dispatch:
 
 jobs:
@@ -45,7 +45,7 @@ jobs:
   publish:
     needs: [build]
     runs-on: ubuntu-22.04
-    if: ${{ github.ref == 'refs/heads/main' }}
+    if: ${{ github.ref == 'refs/heads/plan-b-kvr' }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/download-artifact@v3

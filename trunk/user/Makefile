@@ -101,7 +101,8 @@ dir_y =
 dir_n =
 dir_  =
 dir_y                      += ralinkiappd
-dir_y						+= busybox
+dir_y                      += coremark
+dir_y                      += busybox
 dir_y						+= iptables
 ifneq ($(CONFIG_WITHOUT_KERNEL),y)
 dir_$(CONFIG_FIRMWARE_INCLUDE_IPSET)		+= ipset
@@ -119,13 +120,11 @@ dir_y						+= www
 dir_y						+= rc
 dir_$(CONFIG_FIRMWARE_INCLUDE_ANTFS)		+= antfs
 dir_y						+= infosvr
-dir_y						+= inadyn
+dir_$(CONFIG_FIRMWARE_INCLUDE_INADYN)					+= inadyn
 dir_y						+= miniupnpd
 dir_y						+= dnsmasq
-dir_y						+= igmpproxy
-ifneq ($(CONFIG_FIRMWARE_INCLUDE_MSD_LITE),y)
-dir_y						+= udpxy
-endif
+dir_$(CONFIG_FIRMWARE_INCLUDE_IGMPPROXY)					+= igmpproxy
+dir_$(CONFIG_FIRMWARE_INCLUDE_UDPXY)					+= udpxy
 dir_y						+= utils
 dir_y						+= lanauth
 dir_y						+= 802.1x
@@ -133,8 +132,8 @@ dir_y						+= wpa_supplicant
 dir_y						+= pppd
 dir_y						+= pppoe
 dir_y						+= pppoe-relay
-dir_y						+= poptop
-dir_y						+= xl2tpd
+dir_$(CONFIG_FIRMWARE_INCLUDE_POPTOP)					+= poptop
+dir_$(CONFIG_FIRMWARE_INCLUDE_XL2TPD)					+= xl2tpd
 dir_$(CONFIG_FIRMWARE_INCLUDE_RPL2TP)		+= rp-l2tp
 dir_y						+= lldt
 dir_y						+= scripts
@@ -204,13 +203,14 @@ endif
 
 dir_$(CONFIG_FIRMWARE_INCLUDE_REDSOCKS)			+= redsocks
 dir_$(CONFIG_FIRMWARE_INCLUDE_3PROXY)			+= 3proxy
+dir_$(CONFIG_FIRMWARE_INCLUDE_MICROSOCKS)		+= microsocks
 
 ifdef CONFIG_BLK_DEV_SD
 dir_$(CONFIG_FIRMWARE_INCLUDE_HDPARM)		+= hdparm
 endif
 
 ifdef CONFIG_USB_SUPPORT
-dir_y						+= p910nd
+dir_$(CONFIG_FIRMWARE_INCLUDE_P910ND)				+= p910nd
 dir_y						+= usb-modeswitch
 dir_y						+= comgt-0.32
 dir_y						+= uqmi
