@@ -23,6 +23,7 @@ fi
 
 echo ---------------------------------- STRIP ROMFS ------------------------------------
 find ${ROMFSDIR} -type f -a -exec file {} \; | \
+  grep -v 'no section header' | \
   sed -n -e 's/^\(.*\):.*ELF.*\(executable\|relocatable\|shared object\).*,.*/\1:\2/p' | \
 (
   IFS=":"
