@@ -4,7 +4,7 @@ SRC_NAME = chinadns-ng
 THISDIR = $(shell pwd)
 
 CHINADNS_VER = 2025.08.09
-CHINADNS_FILE = chinadns-ng+wolfssl@mips32+soft_float@fast+lto
+CHINADNS_FILE = chinadns-ng+wolfssl@mipsel-linux-musl@mips32+soft_float@fast+lto
 CHINADNS_URL = https://github.com/zfl9/chinadns-ng/releases/download/$(CHINADNS_VER)/$(CHINADNS_FILE)
 
 all:
