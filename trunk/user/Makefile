@@ -137,17 +137,21 @@ dir_$(CONFIG_FIRMWARE_INCLUDE_XL2TPD)					+= xl2tpd
 dir_$(CONFIG_FIRMWARE_INCLUDE_RPL2TP)		+= rp-l2tp
 dir_y						+= lldt
 dir_y						+= scripts
-dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)						+= skipdbv2
-dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)						+= lua51
+dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)		+= skipdbv2
+dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)		+= lua51
 dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)            +=ipt2socks
 dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)            +=resolveip
-dir_$(CONFIG_FIRMWARE_INCLUDE_ADGUARDHOME)      	+= adguardhome
-dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)	        += dns2tcp
+dir_$(CONFIG_FIRMWARE_INCLUDE_ADGUARDHOME)     	+= adguardhome
+ifneq ($(filter y,$(CONFIG_FIRMWARE_INCLUDE_DNS2TCP) $(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)),)
+dir_y							+= dns2tcp
+endif
+dir_$(CONFIG_FIRMWARE_INCLUDE_CHINADNS_NG)		+= chinadns-ng
+
+dir_$(CONFIG_FIRMWARE_INCLUDE_SINGBOX)	        += sing-box
 
 ifeq ($(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS),y)
 dir_$(CONFIG_FIRMWARE_INCLUDE_V2RAY)	        += v2ray
 dir_$(CONFIG_FIRMWARE_INCLUDE_XRAY)	        += xray
-dir_$(CONFIG_FIRMWARE_INCLUDE_SINGBOX)	        += sing-box
 dir_$(CONFIG_FIRMWARE_INCLUDE_TROJAN)	        += trojan
 dir_$(CONFIG_FIRMWARE_INCLUDE_NAIVEPROXY)	        += naiveproxy
 endif

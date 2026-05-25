@@ -3,3 +3,5 @@ toolchain/crosstool-ng-*/
 toolchain/toolchain-*/
 README.md
 *.md
+*.sh
+*.json
