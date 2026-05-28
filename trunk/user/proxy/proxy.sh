@@ -37,7 +37,7 @@ prereq_check() {
 
     # 必须的二进制
     for _bin in chinadns-ng dns2tcp ipt2socks ipset iptables; do
-        if ! command -v "$_bin" >/dev/null 2>&1; then
+        if ! type "$_bin" >/dev/null 2>&1; then
             _missing="$_missing $_bin"
         fi
     done
