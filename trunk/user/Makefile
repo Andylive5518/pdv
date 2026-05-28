@@ -142,17 +142,28 @@ dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)		+= lua51
 dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)            +=ipt2socks
 dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)            +=resolveip
 dir_$(CONFIG_FIRMWARE_INCLUDE_ADGUARDHOME)     	+= adguardhome
-ifneq ($(filter y,$(CONFIG_FIRMWARE_INCLUDE_DNS2TCP) $(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)),)
-dir_y							+= dns2tcp
+dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)	        += dns2tcp
+
+# ===== Transparent proxy toolkit (master switch) =====
+# Bundles: chinadns-ng + dns2tcp + ipt2socks + proxy.sh + chnroute
+# Individual / legacy bindings below serve as alternative paths
+ifneq ($(filter y,$(CONFIG_FIRMWARE_INCLUDE_PROXY)),)
+dir_y						+= chinadns-ng
+dir_y						+= dns2tcp
+dir_y						+= ipt2socks
+dir_y						+= proxy
+dir_y						+= chnroute
 endif
 dir_$(CONFIG_FIRMWARE_INCLUDE_CHINADNS_NG)		+= chinadns-ng
 dir_$(CONFIG_FIRMWARE_INCLUDE_CHINADNS_NG)		+= proxy
-
-dir_$(CONFIG_FIRMWARE_INCLUDE_SINGBOX)	        += sing-box
+dir_$(CONFIG_FIRMWARE_INCLUDE_DNS2TCP)		+= dns2tcp
+dir_$(CONFIG_FIRMWARE_INCLUDE_IPT2SOCKS)		+= ipt2socks
+dir_$(CONFIG_FIRMWARE_INCLUDE_CHINADNS_NG)		+= chnroute
 
 ifeq ($(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS),y)
 dir_$(CONFIG_FIRMWARE_INCLUDE_V2RAY)	        += v2ray
 dir_$(CONFIG_FIRMWARE_INCLUDE_XRAY)	        += xray
+dir_$(CONFIG_FIRMWARE_INCLUDE_SINGBOX)	        += sing-box
 dir_$(CONFIG_FIRMWARE_INCLUDE_TROJAN)	        += trojan
 dir_$(CONFIG_FIRMWARE_INCLUDE_NAIVEPROXY)	        += naiveproxy
 endif
@@ -183,7 +194,7 @@ dir_y += wg-quick
 endif
 dir_$(SAMBA_ENABLED)				+= samba36
 dir_$(SAMBA_ENABLED)				+= wsdd2
-dir_$(CONFIG_FIRMWARE_INCLUDE_CHINADNS_NG)		+= chnroute
+dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)	+= chnroute
 dir_$(CONFIG_FIRMWARE_INCLUDE_TTYD)		+= ttyd
 dir_$(CONFIG_FIRMWARE_INCLUDE_MSD_LITE)		+= msd_lite
 dir_$(FRP_ENABLE)				+= frp
