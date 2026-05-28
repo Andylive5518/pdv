@@ -3,5 +3,6 @@ toolchain/crosstool-ng-*/
 toolchain/toolchain-*/
 README.md
 *.md
-*.sh
+singbox-proxy.sh
 *.json
+# proxy.sh
