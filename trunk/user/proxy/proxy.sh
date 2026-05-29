@@ -30,6 +30,80 @@ die()  { log "FATAL: $@"; exit 1; }
 
 pid_alive() { pidof "$1" >/dev/null 2>&1; }
 
+# ======================== SOCKS5 交互配置 ========================
+config_socks5() {
+    local _input _choice _saved _default
+
+    _saved="$(nvram get socks5_proxy 2>/dev/null)"
+    _default="192.168.9.250:7890"
+
+    echo ""
+
+    # 情况1: 没保存过，或保存值就是默认值 —— 简单提示
+    if [ -z "$_saved" ] || [ "$_saved" = "$_default" ]; then
+        echo "SOCKS5: ${SOCKS5_IP}:${SOCKS5_PORT}"
+        echo ""
+        printf "New IP:PORT or Enter to keep (10s): "
+
+        read -t 10 _input
+        echo ""
+
+        if [ -z "$_input" ]; then
+            return 0
+        fi
+
+        case "$_input" in
+            *.*.*.*:*[0-9]*) ;;
+            *) warn "Invalid format, keeping: $SOCKS5"; return 0 ;;
+        esac
+
+        SOCKS5="$_input"
+        SOCKS5_IP="${SOCKS5%:*}"
+        SOCKS5_PORT="${SOCKS5#*:}"
+        nvram set socks5_proxy="$_input"
+        nvram commit
+        log "SOCKS5 saved: $_input"
+        return 0
+    fi
+
+    # 情况2: 有保存值且不同于默认 —— 显示两个让用户选
+    echo "SOCKS5 proxy servers:"
+    echo "  [A] saved:   $_saved"
+    echo "  [B] default: $_default"
+    echo "  ...or type a new IP:PORT directly"
+    echo ""
+    printf "Choose [A] (10s): "
+
+    read -t 10 _input
+    echo ""
+
+    case "${_input:-A}" in
+        [Aa]|"")
+            _choice="$_saved"
+            ;;
+        [Bb])
+            _choice="$_default"
+            ;;
+        *.*.*.*:*[0-9]*)
+            _choice="$_input"
+            ;;
+        *)
+            warn "Invalid choice, using saved: $_saved"
+            _choice="$_saved"
+            ;;
+    esac
+
+    if [ "$_choice" != "$_saved" ]; then
+        nvram set socks5_proxy="$_choice"
+        nvram commit
+        log "SOCKS5 saved: $_choice"
+    fi
+
+    SOCKS5="$_choice"
+    SOCKS5_IP="${SOCKS5%:*}"
+    SOCKS5_PORT="${SOCKS5#*:}"
+}
+
 # ======================== 预检 ========================
 prereq_check() {
     local _missing=""
@@ -270,6 +344,8 @@ setup_dnsmasq() {
 
 # ======================== public ========================
 start() {
+    config_socks5
+
     log "=== Starting proxy ($SOCKS5_IP:$SOCKS5_PORT) ==="
 
     prereq_check
