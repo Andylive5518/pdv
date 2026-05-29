@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transparent Proxy</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+       background:#1a1a2e; color:#e0e0e0; min-height:100vh; }
+.header { background:linear-gradient(135deg,#16213e,#0f3460); padding:16px 20px;
+          border-bottom:2px solid #e94560; display:flex; align-items:center; justify-content:space-between; }
+.header h1 { font-size:20px; color:#e94560; }
+.header .ver { font-size:12px; color:#888; }
+
+.container { max-width:720px; margin:0 auto; padding:12px; }
+
+.card { background:#16213e; border-radius:8px; margin-bottom:12px; overflow:hidden; }
+.card-title { background:#0f3460; padding:10px 16px; font-size:14px; font-weight:600;
+              display:flex; align-items:center; gap:8px; }
+.card-title .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+.card-title .dot.green { background:#00c853; }
+.card-title .dot.red   { background:#ff1744; }
+.card-title .dot.gray  { background:#666; }
+.card-body { padding:14px 16px; }
+
+.row { display:flex; align-items:center; padding:6px 0; font-size:14px; }
+.row .label { width:140px; color:#8899aa; flex-shrink:0; }
+.row .value { font-weight:500; }
+.row .badge { padding:2px 10px; border-radius:12px; font-size:12px; font-weight:600; }
+.row .badge.ok  { background:#1b5e20; color:#69f0ae; }
+.row .badge.err { background:#b71c1c; color:#ff8a80; }
+.row .badge.warn{ background:#e65100; color:#ffd180; }
+.row .badge.info{ background:#01579b; color:#81d4fa; }
+
+input, button, select { font-family:inherit; font-size:14px; }
+input[type=text] { background:#0d1b36; border:1px solid #2a3a5c; color:#e0e0e0;
+                   padding:8px 12px; border-radius:4px; width:100%; }
+input[type=text]:focus { border-color:#e94560; outline:none; }
+
+.btn { padding:8px 20px; border:none; border-radius:4px; cursor:pointer; font-weight:600;
+       transition:all .15s; }
+.btn:disabled { opacity:.4; cursor:not-allowed; }
+.btn-start { background:#2e7d32; color:#fff; }
+.btn-start:hover:not(:disabled) { background:#388e3c; }
+.btn-stop  { background:#c62828; color:#fff; }
+.btn-stop:hover:not(:disabled) { background:#d32f2f; }
+.btn-restart { background:#ef6c00; color:#fff; }
+.btn-restart:hover:not(:disabled) { background:#f57c00; }
+.btn-health { background:#1565c0; color:#fff; }
+.btn-health:hover:not(:disabled) { background:#1976d2; }
+.btn-save { background:#6a1b9a; color:#fff; }
+.btn-save:hover:not(:disabled) { background:#7b1fa2; }
+.btn-update { background:#00695c; color:#fff; }
+.btn-update:hover:not(:disabled) { background:#00897b; }
+
+.btn-group { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+
+.log-area { background:#0a0f1a; border:1px solid #2a3a5c; border-radius:4px;
+            padding:10px; font-family:'Courier New',monospace; font-size:12px;
+            max-height:300px; overflow-y:auto; white-space:pre-wrap; word-break:break-all; }
+.log-area .ts { color:#666; }
+.log-area .ok { color:#69f0ae; }
+.log-area .err{ color:#ff8a80; }
+.log-area .warn{color:#ffd180; }
+
+.refresh-bar { display:flex; align-items:center; gap:10px; font-size:12px; color:#8899aa; padding:8px 0; }
+.refresh-bar select { background:#0d1b36; border:1px solid #2a3a5c; color:#e0e0e0;
+                      padding:4px 8px; border-radius:4px; }
+.refresh-bar .countdown { color:#e94560; font-weight:600; }
+
+.socks5-box { display:flex; gap:8px; align-items:center; }
+.socks5-box input { flex:1; }
+
+.footer { text-align:center; padding:16px; color:#555; font-size:11px; }
+
+@media (max-width:480px) {
+  .row .label { width:100px; font-size:12px; }
+  .btn { padding:6px 14px; font-size:12px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Transparent Proxy</h1>
+  <span class="ver">chinadns-ng + dns2tcp + ipt2socks</span>
+</div>
+
+<div class="container">
+
+  <!-- Status Card -->
+  <div class="card">
+    <div class="card-title">
+      <span class="dot gray" id="global-dot"></span>
+      <span id="global-status">Checking...</span>
+    </div>
+    <div class="card-body" id="status-body">
+      <div class="row"><div class="label">chinadns-ng</div><div class="value"><span class="badge info" id="st-cng">--</span></div></div>
+      <div class="row"><div class="label">dns2tcp</div><div class="value"><span class="badge info" id="st-d2t">--</span></div></div>
+      <div class="row"><div class="label">ipt2socks</div><div class="value"><span class="badge info" id="st-i2s">--</span></div></div>
+      <div class="row"><div class="label">chnroute ipset</div><div class="value" id="st-ipset">--</div></div>
+      <div class="row"><div class="label">iptables chain</div><div class="value" id="st-ipt">--</div></div>
+      <div class="row"><div class="label">DNS forwarding</div><div class="value" id="st-dns">--</div></div>
+      <div class="row"><div class="label">SOCKS5 target</div><div class="value" id="st-socks">--</div></div>
+
+      <div class="btn-group">
+        <button class="btn btn-start" id="btn-start" onclick="doCmd('start')">Start</button>
+        <button class="btn btn-stop"  id="btn-stop"  onclick="doCmd('stop')">Stop</button>
+        <button class="btn btn-restart" id="btn-restart" onclick="doCmd('restart')">Restart</button>
+        <button class="btn btn-health" id="btn-health" onclick="doCmd('health')">Health</button>
+        <button class="btn btn-update" id="btn-update" onclick="updateChnroute()">Update chnroute</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SOCKS5 Config Card -->
+  <div class="card">
+    <div class="card-title">SOCKS5 Server</div>
+    <div class="card-body">
+      <div class="socks5-box">
+        <input type="text" id="socks5-input" placeholder="192.168.9.250:7890">
+        <button class="btn btn-save" onclick="saveSocks5()">Save</button>
+      </div>
+      <div style="font-size:12px;color:#8899aa;margin-top:6px;">
+        Saved: <span id="socks5-saved">--</span>
+        &nbsp;|&nbsp; Default: <span id="socks5-default">192.168.9.250:7890</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auto-refresh -->
+  <div class="refresh-bar">
+    Auto-refresh:
+    <select id="refresh-interval" onchange="setRefresh()">
+      <option value="0">Off</option>
+      <option value="3" selected>3s</option>
+      <option value="5">5s</option>
+      <option value="10">10s</option>
+      <option value="30">30s</option>
+    </select>
+    <span class="countdown" id="countdown"></span>
+  </div>
+
+  <!-- Output Log -->
+  <div class="card">
+    <div class="card-title">
+      Output
+      <span style="flex:1"></span>
+      <button class="btn btn-start" style="padding:2px 10px;font-size:11px;" onclick="clearLog()">Clear</button>
+    </div>
+    <div class="log-area" id="log"></div>
+  </div>
+
+</div>
+
+<div class="footer">proxy.sh web control &mdash; pdv firmware</div>
+
+<script>
+// ========== CONFIG ==========
+var PROXY_CMD = '';
+// Auto-detect proxy.sh: try /etc/storage first, then /usr/bin
+function detectProxyCmd(cb) {
+    runCmd('[ -x /etc/storage/proxy.sh ] && echo /etc/storage/proxy.sh || echo /usr/bin/proxy.sh', function(out) {
+        PROXY_CMD = out.trim();
+        cb();
+    });
+}
+var DEFAULT_SOCKS5 = '192.168.9.250:7890';
+var REFRESH_TIMER = null;
+var REFRESH_COUNT = 0;
+
+// ========== INIT ==========
+function init() {
+    detectProxyCmd(function() {
+        loadSocks5();
+        refreshStatus();
+        setRefresh();
+    });
+}
+
+// ========== SOCKS5 ==========
+function loadSocks5() {
+    // Read from nvram via command
+    runCmd('nvram get socks5_proxy', function(out) {
+        var saved = out.trim();
+        var el = document.getElementById('socks5-saved');
+        var input = document.getElementById('socks5-input');
+        if (saved) {
+            el.textContent = saved;
+            el.style.color = '#69f0ae';
+            input.value = saved;
+        } else {
+            el.textContent = 'not set';
+            el.style.color = '#888';
+            input.value = DEFAULT_SOCKS5;
+        }
+    });
+}
+
+function saveSocks5() {
+    var val = document.getElementById('socks5-input').value.trim();
+    if (!/^\d+\.\d+\.\d+\.\d+:\d+$/.test(val)) {
+        addLog('Invalid format: ' + val, 'err');
+        return;
+    }
+    var btn = document.querySelector('.btn-save');
+    btn.disabled = true;
+    runCmd('nvram set socks5_proxy="' + val + '" && nvram commit && echo "OK: ' + val + '"', function(out) {
+        addLog('SOCKS5 saved: ' + val, 'ok');
+        document.getElementById('socks5-saved').textContent = val;
+        document.getElementById('socks5-saved').style.color = '#69f0ae';
+        btn.disabled = false;
+    });
+}
+
+// ========== CHNROUTE UPDATE ==========
+function updateChnroute() {
+    var btn = document.getElementById('btn-update');
+    btn.disabled = true;
+    addLog('>>> Updating chnroute from APNIC ...', '');
+
+    var cmd = 'mkdir -p /etc/storage/chinadns && ' +
+        'curl -sk --connect-timeout 15 --retry 2 ' +
+        '"http://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest" | ' +
+        'awk \'/CN\\|ipv4/ { printf(\"%s/%d\\n\", $4, 32-log($5)/log(2)) }\' ' +
+        '> /etc/storage/chinadns/chnroute.txt && ' +
+        'echo "Downloaded $(wc -l < /etc/storage/chinadns/chnroute.txt) CIDRs" && ' +
+        'if ipset list chnroute >/dev/null 2>&1; then ' +
+        '  ipset destroy chnroute 2>/dev/null; ' +
+        '  (echo "create chnroute hash:net"; ' +
+        '   sed "s/^/add chnroute /" /etc/storage/chinadns/chnroute.txt) ' +
+        '  | ipset restore && echo "ipset reloaded OK"; ' +
+        'fi';
+
+    runCmd(cmd, function(out) {
+        addLog(out, '');
+        btn.disabled = false;
+        refreshStatus();
+    });
+}
+
+// ========== STATUS ==========
+function refreshStatus() {
+    runCmd(PROXY_CMD + ' status', function(out) {
+        parseStatus(out);
+    });
+}
+
+function parseStatus(out) {
+    var lines = out.split('\n');
+    var daemons = {};
+
+    for (var i = 0; i < lines.length; i++) {
+        var l = lines[i].trim();
+        if (!l) continue;
+
+        // SOCKS5 line
+        if (l.startsWith('SOCKS5:')) {
+            document.getElementById('st-socks').textContent = l.replace('SOCKS5:','').trim();
+            continue;
+        }
+
+        // Daemon status: "  name: STATUS (pid N)" or "  name: STOPPED"
+        var dm = l.match(/^\s*(chinadns-ng|dns2tcp|ipt2socks)\s*:\s*(RUNNING|STOPPED)/);
+        if (dm) {
+            daemons[dm[1]] = dm[2];
+        }
+
+        // ipset
+        var ipm = l.match(/chnroute\s+ipset:\s*(\d+)\s+entries/);
+        if (ipm) {
+            document.getElementById('st-ipset').textContent = ipm[1] + ' entries';
+        }
+
+        // iptables
+        var iptm = l.match(/PROXY\s+chain:\s*(\d+)\s+rules/);
+        if (iptm) {
+            document.getElementById('st-ipt').textContent = iptm[1] + ' rules';
+        }
+
+        // DNS fwd
+        var dnsm = l.match(/DNS\s+fwd:\s*(\d+)/);
+        if (dnsm) {
+            document.getElementById('st-dns').textContent = dnsm[1] == '1' ? 'enabled' : 'disabled';
+        }
+    }
+
+    // Update daemon badges
+    updateBadge('st-cng', daemons['chinadns-ng']);
+    updateBadge('st-d2t', daemons['dns2tcp']);
+    updateBadge('st-i2s', daemons['ipt2socks']);
+
+    // Global status
+    var allRunning = (daemons['chinadns-ng'] === 'RUNNING' &&
+                      daemons['dns2tcp'] === 'RUNNING' &&
+                      daemons['ipt2socks'] === 'RUNNING');
+    var anyRunning = (daemons['chinadns-ng'] === 'RUNNING' ||
+                      daemons['dns2tcp'] === 'RUNNING' ||
+                      daemons['ipt2socks'] === 'RUNNING');
+
+    var dot = document.getElementById('global-dot');
+    var gs  = document.getElementById('global-status');
+    dot.className = 'dot ' + (allRunning ? 'green' : anyRunning ? 'gray' : 'red');
+    gs.textContent = allRunning ? 'All Running' : anyRunning ? 'Partial' : 'Stopped';
+
+    // Button states
+    document.getElementById('btn-start').disabled = allRunning;
+    document.getElementById('btn-stop').disabled = !anyRunning;
+    document.getElementById('btn-restart').disabled = false;
+    document.getElementById('btn-health').disabled = false;
+}
+
+function updateBadge(id, state) {
+    var el = document.getElementById(id);
+    if (!state) { el.className = 'badge info'; el.textContent = '--'; return; }
+    if (state === 'RUNNING') {
+        el.className = 'badge ok';
+        el.textContent = 'RUNNING';
+    } else {
+        el.className = 'badge err';
+        el.textContent = 'STOPPED';
+    }
+}
+
+// ========== HEALTH CHECK ==========
+function fixHealthOutput(out) {
+    // Highlight health check output
+    return out
+        .replace(/\[OK\]/g, '<span class="ok">[OK]</span>')
+        .replace(/\[FAIL\]/g, '<span class="err">[FAIL]</span>')
+        .replace(/\[WARN\]/g, '<span class="warn">[WARN]</span>');
+}
+
+// ========== COMMAND EXECUTION ==========
+var cmdQueue = [];
+var cmdRunning = false;
+
+function runCmd(cmd, callback) {
+    cmdQueue.push({cmd: cmd, cb: callback});
+    processQueue();
+}
+
+function processQueue() {
+    if (cmdRunning || cmdQueue.length === 0) return;
+    cmdRunning = true;
+    var item = cmdQueue.shift();
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/apply.cgi', true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            // Command submitted, now fetch output
+            setTimeout(function() {
+                fetchOutput(item.cb);
+            }, 800); // wait for command to complete
+        }
+    };
+    var params = 'action_mode=+SystemCmd+&current_page=console_response.asp' +
+                 '&next_page=console_response.asp&SystemCmd=' + encodeURIComponent(item.cmd);
+    xhr.send(params);
+}
+
+function fetchOutput(callback) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/console_response.asp?t=' + Date.now(), true);
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            if (callback) callback(xhr.responseText || '');
+            cmdRunning = false;
+            processQueue();
+        }
+    };
+    xhr.send();
+}
+
+// ========== PUBLIC ACTIONS ==========
+function doCmd(action) {
+    var btn = document.getElementById('btn-' + action);
+    if (btn) btn.disabled = true;
+
+    addLog('>>> ' + action + ' ...', '');
+
+    if (action === 'health') {
+        runCmd(PROXY_CMD + ' health', function(out) {
+            addLog(out, '');
+            if (btn) btn.disabled = false;
+            refreshStatus();
+        });
+        return;
+    }
+
+    var cmd;
+    if (action === 'start') {
+        // Include socks5 env
+        var socks = document.getElementById('socks5-input').value.trim() || DEFAULT_SOCKS5;
+        cmd = 'socks5_proxy=' + socks + ' ' + PROXY_CMD + ' start';
+    } else if (action === 'stop') {
+        cmd = PROXY_CMD + ' stop';
+    } else {
+        var socks = document.getElementById('socks5-input').value.trim() || DEFAULT_SOCKS5;
+        cmd = 'socks5_proxy=' + socks + ' ' + PROXY_CMD + ' restart';
+    }
+
+    runCmd(cmd, function(out) {
+        addLog(out, '');
+        if (btn) btn.disabled = false;
+        refreshStatus();
+    });
+}
+
+// ========== LOG ==========
+function addLog(text, cls) {
+    var ts = new Date().toLocaleTimeString();
+    var div = document.getElementById('log');
+    var line = document.createElement('div');
+    line.innerHTML = '<span class="ts">' + ts + '</span> ' + fixHealthOutput(text);
+    div.appendChild(line);
+    div.scrollTop = div.scrollHeight;
+}
+
+function clearLog() {
+    document.getElementById('log').innerHTML = '';
+}
+
+// ========== AUTO-REFRESH ==========
+function setRefresh() {
+    if (REFRESH_TIMER) { clearInterval(REFRESH_TIMER); REFRESH_TIMER = null; }
+    var interval = parseInt(document.getElementById('refresh-interval').value);
+    document.getElementById('countdown').textContent = '';
+    REFRESH_COUNT = interval;
+    if (interval > 0) {
+        REFRESH_TIMER = setInterval(function() {
+            REFRESH_COUNT--;
+            document.getElementById('countdown').textContent = 'next: ' + REFRESH_COUNT + 's';
+            if (REFRESH_COUNT <= 0) {
+                REFRESH_COUNT = interval;
+                refreshStatus();
+            }
+        }, 1000);
+    }
+}
+
+// ========== STARTUP ==========
+window.onload = init;
+</script>
+
+</body>
+</html>

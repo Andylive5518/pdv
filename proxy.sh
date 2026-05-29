@@ -31,21 +31,67 @@ die()  { log "FATAL: $@"; exit 1; }
 pid_alive() { pidof "$1" >/dev/null 2>&1; }
 
 # ======================== SOCKS5 交互配置 ========================
+
+# BusyBox 1.24 compatible timed read (read -t only since 1.25)
+# Usage: _timed_read <seconds>
+# Sets global _input; returns 0 if input received, 1 if timeout
+_timed_read() {
+    local _timeout="$1" _pid _tty
+    _input=""
+    rm -f /tmp/_tr_$$
+
+    # Pick input source: /dev/tty if available, else stdin
+    if [ -c /dev/tty ]; then
+        _tty=/dev/tty
+    else
+        _tty=/dev/stdin
+    fi
+
+    ( read _tr_input 2>/dev/null; echo "$_tr_input" > /tmp/_tr_$$ ) < "$_tty" &
+    _pid=$!
+
+    local _i=0
+    while [ $_i -lt "$_timeout" ]; do
+        sleep 1
+        _i=$((_i + 1))
+        [ -f /tmp/_tr_$$ ] && break
+    done
+
+    kill $_pid 2>/dev/null
+    wait $_pid 2>/dev/null
+
+    if [ -f /tmp/_tr_$$ ]; then
+        _input="$(cat /tmp/_tr_$$)"
+        rm -f /tmp/_tr_$$
+        return 0
+    fi
+    return 1
+}
+
 config_socks5() {
     local _input _choice _saved _default
+
+    # Skip interactive prompt if no terminal (web UI, cron, etc.)
+    if [ ! -t 0 ]; then
+        log "SOCKS5: non-interactive, using $SOCKS5"
+        return 0
+    fi
 
     _saved="$(nvram get socks5_proxy 2>/dev/null)"
     _default="192.168.9.250:7890"
 
     echo ""
 
-    # 情况1: 没保存过，或保存值就是默认值 —— 简单提示
+    # ---- 情况1: 没保存过，或保存值就是默认值 ----
     if [ -z "$_saved" ] || [ "$_saved" = "$_default" ]; then
         echo "SOCKS5: ${SOCKS5_IP}:${SOCKS5_PORT}"
         echo ""
         printf "New IP:PORT or Enter to keep (10s): "
 
-        read -t 10 _input
+        if ! _timed_read 10; then
+            echo "(timeout)"
+            return 0
+        fi
         echo ""
 
         if [ -z "$_input" ]; then
@@ -66,7 +112,7 @@ config_socks5() {
         return 0
     fi
 
-    # 情况2: 有保存值且不同于默认 —— 显示两个让用户选
+    # ---- 情况2: 有保存值且不同于默认 ----
     echo "SOCKS5 proxy servers:"
     echo "  [A] saved:   $_saved"
     echo "  [B] default: $_default"
@@ -74,7 +120,10 @@ config_socks5() {
     echo ""
     printf "Choose [A] (10s): "
 
-    read -t 10 _input
+    if ! _timed_read 10; then
+        echo "(timeout → A)"
+        _input="A"
+    fi
     echo ""
 
     case "${_input:-A}" in
@@ -104,6 +153,7 @@ config_socks5() {
     SOCKS5_PORT="${SOCKS5#*:}"
 }
 
+# ======================== 预检 ========================
 # ======================== 预检 ========================
 prereq_check() {
     local _missing=""
