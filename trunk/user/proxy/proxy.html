@@ -162,24 +162,16 @@ input[type=text]:focus { border-color:#e94560; outline:none; }
 
 <script>
 // ===== 配置 =====
-var PROXY_CMD = '';
 var DEFAULT_SOCKS5 = '192.168.9.250:7890';
 var REFRESH_TIMER = null;
 var REFRESH_COUNT = 0;
 
-function detectProxyCmd(cb) {
-    runCmd('[ -x /etc/storage/proxy.sh ] && echo /etc/storage/proxy.sh || echo /usr/bin/proxy.sh', function(out) {
-        PROXY_CMD = out.trim(); cb();
-    });
-}
 
 // ===== 初始化 =====
 function init() {
-    detectProxyCmd(function() {
-        loadSocks5();
-        refreshStatus();
-        setRefresh();
-    });
+    loadSocks5();
+    refreshStatus();
+    setRefresh();
 }
 
 // ===== SOCKS5 =====
@@ -226,7 +218,7 @@ function updateChnroute() {
 
 // ===== 状态解析 =====
 function refreshStatus() {
-    runCmd(PROXY_CMD + ' status', function(out) { parseStatus(out); });
+    runCmd('proxy.sh status', function(out) { parseStatus(out); });
 }
 function parseStatus(out) {
     var lines = out.split('\n'), daemons = {};
@@ -272,7 +264,7 @@ function processQueue() {
     xhr.onreadystatechange = function() {
         if (xhr.readyState === 4) setTimeout(function() { fetchOutput(item.cb); }, 800);
     };
-    xhr.send('action_mode=+SystemCmd+&current_page=console_response.asp&next_page=console_response.asp&SystemCmd=' + encodeURIComponent(item.cmd));
+    xhr.send('action_mode=+SystemCmd+&current_page=console_response.asp&next_page=console_response.asp&sid_list=syscmd.sh&SystemCmd=' + item.cmd);
 }
 function fetchOutput(cb) {
     var xhr = new XMLHttpRequest();
@@ -288,12 +280,11 @@ function doCmd(action) {
     var b = document.getElementById('btn-' + action); if (b) b.disabled = true;
     addLog('>>> ' + action, '');
     if (action === 'health') {
-        runCmd(PROXY_CMD + ' health', function(out) { addLog(out, ''); if(b)b.disabled=false; refreshStatus(); });
+        runCmd('proxy.sh health', function(out) { addLog(out, ''); if(b)b.disabled=false; refreshStatus(); });
         return;
     }
     var socks = document.getElementById('socks5-input').value.trim() || DEFAULT_SOCKS5;
-    var env = 'socks5_proxy=' + socks;
-    var cmd = env + ' ' + PROXY_CMD + ' ' + action;
+    var cmd = 'proxy.sh ' + action;
     runCmd(cmd, function(out) { addLog(out, ''); if(b)b.disabled=false; refreshStatus(); });
 }
 function fixHealthOutput(out) {
