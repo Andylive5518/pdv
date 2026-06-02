@@ -5,4 +5,5 @@ README.md
 *.md
 singbox-proxy.sh
 *.json
-# proxy.sh
+/proxy.sh
+guest-isolate.sh

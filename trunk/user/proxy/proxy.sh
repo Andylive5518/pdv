@@ -17,8 +17,6 @@ SOCKS5="${SOCKS5:-192.168.9.250:7890}"
 SOCKS5_IP="${SOCKS5%:*}"
 SOCKS5_PORT="${SOCKS5#*:}"
 
-# 接口绑定: 逗号分隔，空=全部接口。例: "br0,eth2.1"
-PROXY_IFACES="${proxy_ifaces:-$(nvram get proxy_ifaces)}"
 
 CHNROUTE_TXT="/etc/storage/chinadns/chnroute.txt"
 CHNROUTE_BZ2="/etc_ro/chnroute.bz2"
@@ -316,10 +314,9 @@ start_daemons() {
 
 # ======================== iptables ========================
 flush_iptables() {
-    # 删除所有 PREROUTING/OUTPUT 到 PROXY 的跳转
-    iptables -t nat -S PREROUTING 2>/dev/null | grep -- "-j $PROXY_CHAIN" | sed 's/^-A/-D/' | while read -r _rule; do
-        iptables -t nat $_rule 2>/dev/null
-    done
+        # 清理所有 PREROUTING 到 PROXY 的跳转（含 -i br0 和无 -i 两种）
+    iptables -t nat -D PREROUTING -i br0 -j "$PROXY_CHAIN" 2>/dev/null || true
+    iptables -t nat -D PREROUTING -j "$PROXY_CHAIN" 2>/dev/null || true
     iptables -t nat -D OUTPUT -j "$PROXY_CHAIN" 2>/dev/null || true
     iptables -t nat -F "$PROXY_CHAIN" 2>/dev/null || true
     iptables -t nat -X "$PROXY_CHAIN" 2>/dev/null || true
@@ -327,7 +324,6 @@ flush_iptables() {
 }
 
 setup_iptables() {
-    local _iface
     flush_iptables
 
     log "Setting up iptables..."
@@ -357,19 +353,8 @@ setup_iptables() {
     iptables -t nat -A "$PROXY_CHAIN" -p tcp \
         -j REDIRECT --to-ports 1088
 
-    # 挂入主链
-    # PREROUTING: 如果有接口绑定，每个接口加一条 -i 规则
-    if [ -n "$PROXY_IFACES" ]; then
-        for _iface in $(echo "$PROXY_IFACES" | tr ',' ' '); do
-            [ -z "$_iface" ] && continue
-            iptables -t nat -I PREROUTING 1 -i "$_iface" -j "$PROXY_CHAIN"
-            log "  bound to interface: $_iface"
-        done
-    else
-        iptables -t nat -I PREROUTING 1 -j "$PROXY_CHAIN"
-    fi
-
-    # OUTPUT 在 DNS 规则之后
+    # 挂入主链（PREROUTING 最先，OUTPUT 在 DNS 规则之后）
+    iptables -t nat -I PREROUTING 1 -i br0 -j "$PROXY_CHAIN"
     iptables -t nat -I OUTPUT 2 -j "$PROXY_CHAIN"
 
     log "  iptables done"
@@ -446,9 +431,9 @@ stop() {
     log "=== Stopping proxy ==="
 
     # iptables（全部忽略错误，保证幂等）
-    iptables -t nat -S PREROUTING 2>/dev/null | grep -- "-j $PROXY_CHAIN" | sed 's/^-A/-D/' | while read -r _rule; do
-        iptables -t nat $_rule 2>/dev/null
-    done
+        # 清理所有 PREROUTING 到 PROXY 的跳转（含 -i br0 和无 -i 两种）
+    iptables -t nat -D PREROUTING -i br0 -j "$PROXY_CHAIN" 2>/dev/null || true
+    iptables -t nat -D PREROUTING -j "$PROXY_CHAIN" 2>/dev/null || true
     iptables -t nat -D OUTPUT -j "$PROXY_CHAIN" 2>/dev/null || true
     iptables -t nat -F "$PROXY_CHAIN" 2>/dev/null || true
     iptables -t nat -X "$PROXY_CHAIN" 2>/dev/null || true
@@ -553,12 +538,6 @@ status() {
     echo "chnroute ipset: $_n entries"
     _n=$(iptables -t nat -L PROXY -n 2>/dev/null | wc -l)
     echo "PROXY chain: $_n rules"
-    _n=$(iptables -t nat -S PREROUTING 2>/dev/null | grep -c -- "-i.*-j $PROXY_CHAIN" || echo 0)
-    if [ "$_n" -gt 0 ]; then
-        echo "Bound interfaces: $_n"
-    else
-        echo "Bound interfaces: all"
-    fi
     _n=$(grep -c 'server=127.0.0.1#5353' "$DNSMASQ_CONF" 2>/dev/null || echo 0)
     echo "DNS fwd: $_n"
 }
