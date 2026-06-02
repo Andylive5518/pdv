@@ -17,6 +17,9 @@ SOCKS5="${SOCKS5:-192.168.9.250:7890}"
 SOCKS5_IP="${SOCKS5%:*}"
 SOCKS5_PORT="${SOCKS5#*:}"
 
+# 代理接口: 逗号分隔，空=全部。physdev 精确匹配 (需内核支持)
+PROXY_IFACES="${proxy_ifaces:-$(nvram get proxy_ifaces)}"
+
 
 CHNROUTE_TXT="/etc/storage/chinadns/chnroute.txt"
 CHNROUTE_BZ2="/etc_ro/chnroute.bz2"
@@ -30,6 +33,19 @@ warn() { logger -t "proxy" -p warn "$@"; echo "$(date '+%H:%M:%S') WARN: $@"; }
 die()  { log "FATAL: $@"; exit 1; }
 
 pid_alive() { pidof "$1" >/dev/null 2>&1; }
+
+# ======================== WiFi 扫描 ========================
+# 输出: iface|ssid
+scan_wifi() {
+    local _iface _ssid
+    for _iface in $(iwconfig 2>/dev/null | grep "^[a-z]" | awk '"'"'{print $1}'"'"'); do
+        case "$_iface" in apcli*) continue ;; esac
+        ip link show "$_iface" >/dev/null 2>&1 || continue
+        _ssid=$(iwconfig "$_iface" 2>/dev/null | grep ESSID | sed '"'"'s/.*ESSID:"//;s/".*//'"'"')
+        [ -z "$_ssid" ] && continue
+        printf '"'"'%s|%s\n'"'"' "$_iface" "$_ssid"
+    done
+}
 
 # ======================== SOCKS5 交互配置 ========================
 
@@ -154,7 +170,163 @@ config_socks5() {
     SOCKS5_PORT="${SOCKS5#*:}"
 }
 
+# ======================== 代理接口选择 ========================
+config_ifaces() {
+    local _iface _ssid _i _sel _choice _selected _saved
+
+    # 非交互模式跳过
+    if [ ! -t 0 ]; then
+        return 0
+    fi
+
+    _saved="$(nvram get proxy_ifaces 2>/dev/null)"
+
+    echo ""
+    echo "=== 选择要代理的网络 ==="
+    echo ""
+
+    _i=1
+    while IFS="|" read -r _iface _ssid; do
+        [ -z "$_iface" ] && continue
+        _mark=" "
+        if echo ",${_saved}," | grep -q ",${_iface}," 2>/dev/null; then
+            _mark="*"
+        fi
+        printf "  %2d) [%s] %-20s SSID: %s" "$_i" "$_mark" "$_iface" "$_ssid"
+        if [ -d "/sys/class/net/br0/brif/$_iface" ] 2>/dev/null; then
+            echo " (br0)"
+        else
+            echo ""
+        fi
+        eval "_iface$_i=\$_iface"
+        _i=$((_i + 1))
+    done << EOF
+$(scan_wifi)
+EOF
+
+    # 有线接口
+    for _iface in $(ls /sys/class/net/br0/brif/ 2>/dev/null); do
+        case "$_iface" in ra*|rax*|apcli*) continue ;; esac
+        _mark=" "
+        if echo ",${_saved}," | grep -q ",${_iface}," 2>/dev/null; then _mark="*"; fi
+        printf "  %2d) [%s] %-20s (有线)" "$_i" "$_mark" "$_iface"
+        echo ""
+        eval "_iface$_i=\$_iface"
+        _i=$((_i + 1))
+    done
+
+    echo ""
+    echo "[*] = 上次保存  留空 = 全部接口"
+    echo ""
+    printf "选择代理接口 (编号，逗号分隔，留空=全部): "
+    read -r _sel
+
+    if [ -z "$_sel" ]; then
+        nvram unset proxy_ifaces 2>/dev/null
+        nvram commit
+        PROXY_IFACES=""
+        log "代理: 全部接口"
+        return 0
+    fi
+
+    _selected=""
+    _IFS="$IFS"; IFS=","
+    for _choice in $_sel; do
+        _choice=$(echo "$_choice" | tr -d " ")
+        eval "_iface=\$_iface$_choice"
+        [ -n "$_iface" ] && _selected="${_selected}${_iface},"
+    done
+    IFS="$_IFS"
+    _selected="${_selected%,}"
+    [ -z "$_selected" ] && { warn "选择无效"; return 0; }
+
+    if [ "$_selected" != "$_saved" ]; then
+        nvram set proxy_ifaces="$_selected"
+        nvram commit
+    fi
+    PROXY_IFACES="$_selected"
+    log "代理接口: $_selected"
+}
+
 # ======================== 预检 ========================
+# ======================== 代理接口选择 ========================
+config_ifaces() {
+    local _iface _ssid _i _sel _choice _selected _saved
+
+    # 非交互模式跳过
+    if [ ! -t 0 ]; then
+        return 0
+    fi
+
+    _saved="$(nvram get proxy_ifaces 2>/dev/null)"
+
+    echo ""
+    echo "=== 选择要代理的网络 ==="
+    echo ""
+
+    _i=1
+    while IFS="|" read -r _iface _ssid; do
+        [ -z "$_iface" ] && continue
+        _mark=" "
+        if echo ",${_saved}," | grep -q ",${_iface}," 2>/dev/null; then
+            _mark="*"
+        fi
+        printf "  %2d) [%s] %-20s SSID: %s" "$_i" "$_mark" "$_iface" "$_ssid"
+        if [ -d "/sys/class/net/br0/brif/$_iface" ] 2>/dev/null; then
+            echo " (br0)"
+        else
+            echo ""
+        fi
+        eval "_iface$_i=\$_iface"
+        _i=$((_i + 1))
+    done << EOF
+$(scan_wifi)
+EOF
+
+    # 有线接口
+    for _iface in $(ls /sys/class/net/br0/brif/ 2>/dev/null); do
+        case "$_iface" in ra*|rax*|apcli*) continue ;; esac
+        _mark=" "
+        if echo ",${_saved}," | grep -q ",${_iface}," 2>/dev/null; then _mark="*"; fi
+        printf "  %2d) [%s] %-20s (有线)" "$_i" "$_mark" "$_iface"
+        echo ""
+        eval "_iface$_i=\$_iface"
+        _i=$((_i + 1))
+    done
+
+    echo ""
+    echo "[*] = 上次保存  留空 = 全部接口"
+    echo ""
+    printf "选择代理接口 (编号，逗号分隔，留空=全部): "
+    read -r _sel
+
+    if [ -z "$_sel" ]; then
+        nvram unset proxy_ifaces 2>/dev/null
+        nvram commit
+        PROXY_IFACES=""
+        log "代理: 全部接口"
+        return 0
+    fi
+
+    _selected=""
+    _IFS="$IFS"; IFS=","
+    for _choice in $_sel; do
+        _choice=$(echo "$_choice" | tr -d " ")
+        eval "_iface=\$_iface$_choice"
+        [ -n "$_iface" ] && _selected="${_selected}${_iface},"
+    done
+    IFS="$_IFS"
+    _selected="${_selected%,}"
+    [ -z "$_selected" ] && { warn "选择无效"; return 0; }
+
+    if [ "$_selected" != "$_saved" ]; then
+        nvram set proxy_ifaces="$_selected"
+        nvram commit
+    fi
+    PROXY_IFACES="$_selected"
+    log "代理接口: $_selected"
+}
+
 # ======================== 预检 ========================
 prereq_check() {
     local _missing=""
@@ -315,8 +487,9 @@ start_daemons() {
 # ======================== iptables ========================
 flush_iptables() {
         # 清理所有 PREROUTING 到 PROXY 的跳转（含 -i br0 和无 -i 两种）
-    iptables -t nat -D PREROUTING -i br0 -j "$PROXY_CHAIN" 2>/dev/null || true
-    iptables -t nat -D PREROUTING -j "$PROXY_CHAIN" 2>/dev/null || true
+    iptables -t nat -S PREROUTING 2>/dev/null | grep -- "-j $PROXY_CHAIN" | sed 's/^-A/-D/' | while read -r _rule; do
+        iptables -t nat $_rule 2>/dev/null
+    done
     iptables -t nat -D OUTPUT -j "$PROXY_CHAIN" 2>/dev/null || true
     iptables -t nat -F "$PROXY_CHAIN" 2>/dev/null || true
     iptables -t nat -X "$PROXY_CHAIN" 2>/dev/null || true
@@ -354,12 +527,22 @@ setup_iptables() {
         -j REDIRECT --to-ports 1088
 
     # 挂入主链（PREROUTING 最先，OUTPUT 在 DNS 规则之后）
-    # 计算插入位置：如果已有 physdev RETURN 规则，插在它们之后
-    _pos=$(iptables -t nat -S PREROUTING 2>/dev/null | grep -c 'physdev' || echo 0)
-    _pos=$((_pos + 1))
-    iptables -t nat -I PREROUTING "$_pos" -i br0 -j "$PROXY_CHAIN"
+    # PREROUTING: 有接口选择用 physdev 精确匹配，否则全部 br0
+    if [ -n "$PROXY_IFACES" ]; then
+        for _iface in $(echo "$PROXY_IFACES" | tr ',' ' '); do
+            [ -z "$_iface" ] && continue
+            if iptables -t nat -I PREROUTING 1 -i br0 -m physdev --physdev-in "$_iface" -j "$PROXY_CHAIN" 2>/dev/null; then
+                log "  proxy: $_iface"
+            else
+                log "  proxy: $_iface (fallback, physdev not available)"
+                iptables -t nat -I PREROUTING 1 -i br0 -j "$PROXY_CHAIN"
+                break
+            fi
+        done
+    else
+        iptables -t nat -I PREROUTING 1 -i br0 -j "$PROXY_CHAIN"
+    fi
     iptables -t nat -I OUTPUT 2 -j "$PROXY_CHAIN"
-
     log "  iptables done"
 }
 
@@ -401,6 +584,7 @@ setup_dnsmasq() {
 # ======================== public ========================
 start() {
     config_socks5
+    config_ifaces
 
     log "=== Starting proxy ($SOCKS5_IP:$SOCKS5_PORT) ==="
 
@@ -435,8 +619,9 @@ stop() {
 
     # iptables（全部忽略错误，保证幂等）
         # 清理所有 PREROUTING 到 PROXY 的跳转（含 -i br0 和无 -i 两种）
-    iptables -t nat -D PREROUTING -i br0 -j "$PROXY_CHAIN" 2>/dev/null || true
-    iptables -t nat -D PREROUTING -j "$PROXY_CHAIN" 2>/dev/null || true
+    iptables -t nat -S PREROUTING 2>/dev/null | grep -- "-j $PROXY_CHAIN" | sed 's/^-A/-D/' | while read -r _rule; do
+        iptables -t nat $_rule 2>/dev/null
+    done
     iptables -t nat -D OUTPUT -j "$PROXY_CHAIN" 2>/dev/null || true
     iptables -t nat -F "$PROXY_CHAIN" 2>/dev/null || true
     iptables -t nat -X "$PROXY_CHAIN" 2>/dev/null || true
@@ -542,6 +727,8 @@ status() {
     _n=$(iptables -t nat -L PROXY -n 2>/dev/null | wc -l)
     echo "PROXY chain: $_n rules"
     _n=$(grep -c 'server=127.0.0.1#5353' "$DNSMASQ_CONF" 2>/dev/null || echo 0)
+    _ifaces="${PROXY_IFACES:-all}"
+    echo "Proxied interfaces: $_ifaces"
     echo "DNS fwd: $_n"
 }
 
