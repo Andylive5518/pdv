@@ -119,6 +119,7 @@ input[type=text]:focus { border-color:#e94560; outline:none; }
         <div class="lbl">iptables 链</div><div class="val" id="st-ipt">--</div>
         <div class="lbl">DNS 转发</div><div class="val" id="st-dns">--</div>
         <div class="lbl">SOCKS5 目标</div><div class="val" id="st-socks">--</div>
+        <div class="lbl">代理接口</div><div class="val" id="st-ifaces">--</div>
       </div>
       <div class="btn-row">
         <button class="btn btn-start" id="btn-start" onclick="doCmd('start')">启动</button>
@@ -146,6 +147,21 @@ input[type=text]:focus { border-color:#e94560; outline:none; }
   </div>
 
 
+  <!-- 代理接口卡片 -->
+  <div class="card">
+    <div class="card-title">代理接口</div>
+    <div class="card-body">
+      <div class="inline-box">
+        <input type="text" id="ifaces-input" placeholder="留空=全部，多个用逗号分隔，如: eth2,ra0,rax0">
+        <button class="btn btn-save" onclick="saveIfaces()">保存</button>
+      </div>
+      <div class="hint">
+        已保存: <span id="ifaces-saved">--</span>
+        &nbsp;|&nbsp; 可用: <span id="ifaces-avail">--</span>
+      </div>
+    </div>
+  </div>
+
   <!-- 输出日志 -->
   <div class="card">
     <div class="card-title">
@@ -170,6 +186,7 @@ var REFRESH_COUNT = 0;
 // ===== 初始化 =====
 function init() {
     loadSocks5();
+    loadIfaces();
     refreshStatus();
     setRefresh();
 }
@@ -194,6 +211,37 @@ function saveSocks5() {
     });
 }
 
+
+// ===== 代理接口 =====
+function loadIfaces() {
+    runCmd('nvram get proxy_ifaces', function(out) {
+        var v = out.trim(), el = document.getElementById('ifaces-saved'), inp = document.getElementById('ifaces-input');
+        if (v) { el.textContent = v; el.style.color = '#69f0ae'; inp.value = v; }
+        else   { el.textContent = '未设置（全部）'; el.style.color = '#667'; inp.value = ''; }
+    });
+    runCmd("ls /sys/class/net/br0/brif/ 2>/dev/null | tr '\n' ' '", function(out) {
+        document.getElementById('ifaces-avail').textContent = out.trim() || '--';
+    });
+}
+function saveIfaces() {
+    var v = document.getElementById('ifaces-input').value.trim();
+    var b = document.querySelector('#ifaces-input + .btn-save'); if(b)b.disabled=true;
+    if (v) {
+        runCmd('nvram set proxy_ifaces="' + v + '" && nvram commit && echo OK', function(out) {
+            addLog('代理接口: ' + v, 'ok');
+            document.getElementById('ifaces-saved').textContent = v;
+            document.getElementById('ifaces-saved').style.color = '#69f0ae';
+            if(b)b.disabled=false;
+        });
+    } else {
+        runCmd('nvram unset proxy_ifaces && nvram commit && echo OK', function(out) {
+            addLog('代理接口: 全部', 'ok');
+            document.getElementById('ifaces-saved').textContent = '未设置（全部）';
+            document.getElementById('ifaces-saved').style.color = '#667';
+            if(b)b.disabled=false;
+        });
+    }
+}
 
 // ===== 更新路由表 =====
 function updateChnroute() {
@@ -233,6 +281,8 @@ function parseStatus(out) {
         if (iptm) document.getElementById('st-ipt').textContent = iptm[1] + ' 条规则';
         var dnsm = l.match(/DNS\s+fwd:\s*(\d+)/);
         if (dnsm) document.getElementById('st-dns').textContent = dnsm[1] == '1' ? '已启用' : '未启用';
+        var ifm = l.match(/Proxied interfaces:\s*(.+)/);
+        if (ifm) document.getElementById('st-ifaces').textContent = ifm[1];
     }
     updateBadge('st-cng', daemons['chinadns-ng']);
     updateBadge('st-d2t', daemons['dns2tcp']);
