@@ -149,16 +149,14 @@ input[type=text]:focus { border-color:#e94560; outline:none; }
 
   <!-- 代理接口卡片 -->
   <div class="card">
-    <div class="card-title">代理接口</div>
+    <div class="card-title">代理接口 <span style="font-weight:normal;font-size:11px;color:#8899aa;">(勾选=走代理，留空=全部)</span></div>
     <div class="card-body">
-      <div class="inline-box">
-        <input type="text" id="ifaces-input" placeholder="留空=全部，多个用逗号分隔，如: eth2,ra0,rax0">
+      <div id="ifaces-list" style="max-height:200px;overflow-y:auto;">加载中...</div>
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="btn btn-update" style="font-size:11px;padding:4px 12px;" onclick="toggleAllIfaces()">全选/取消</button>
         <button class="btn btn-save" onclick="saveIfaces()">保存</button>
       </div>
-      <div class="hint">
-        已保存: <span id="ifaces-saved">--</span>
-        &nbsp;|&nbsp; 可用: <span id="ifaces-avail">--</span>
-      </div>
+      <div class="hint" style="margin-top:4px;">已保存: <span id="ifaces-saved">--</span></div>
     </div>
   </div>
 
@@ -213,32 +211,64 @@ function saveSocks5() {
 
 
 // ===== 代理接口 =====
+var ifaceData = [];
 function loadIfaces() {
-    runCmd('nvram get proxy_ifaces', function(out) {
-        var v = out.trim(), el = document.getElementById('ifaces-saved'), inp = document.getElementById('ifaces-input');
-        if (v) { el.textContent = v; el.style.color = '#69f0ae'; inp.value = v; }
-        else   { el.textContent = '未设置（全部）'; el.style.color = '#667'; inp.value = ''; }
+    var cmd = 'for i in $(iwconfig 2>/dev/null | grep "^[a-z]" | awk "{print \$1}"); do ' +
+        'case "$i" in apcli*) continue;; esac; ' +
+        's=$(iwconfig "$i" 2>/dev/null | grep ESSID | sed "s/.*ESSID:"//;s/".*//"); ' +
+        '[ -n "$s" ] && echo "$i|$s"; ' +
+        'done; ' +
+        'for i in $(ls /sys/class/net/br0/brif/ 2>/dev/null); do ' +
+        'case "$i" in ra*|rax*|apcli*) continue;; esac; ' +
+        'echo "$i|(有线)"; ' +
+        'done';
+    runCmd(cmd, function(out) {
+        ifaceData = [];
+        var lines = out.trim().split('\n');
+        for (var i = 0; i < lines.length; i++) {
+            var p = lines[i].split('|');
+            if (p.length >= 2) ifaceData.push({iface:p[0], ssid:p[1]});
+        }
+        renderIfaces();
     });
-    runCmd("ls /sys/class/net/br0/brif/ 2>/dev/null | tr '\n' ' '", function(out) {
-        document.getElementById('ifaces-avail').textContent = out.trim() || '--';
+    runCmd('nvram get proxy_ifaces', function(out) {
+        var v = out.trim(), el = document.getElementById('ifaces-saved');
+        if (v) { el.textContent = v; el.style.color = '#69f0ae'; }
+        else   { el.textContent = '未设置（全部）'; el.style.color = '#667'; }
     });
 }
+function renderIfaces() {
+    var saved = document.getElementById('ifaces-saved').textContent;
+    var sl = (saved.indexOf('全部')>=0||saved.indexOf('未设置')>=0) ? [] : saved.split(',');
+    var h = '';
+    for (var i = 0; i < ifaceData.length; i++) {
+        var d = ifaceData[i], c = (sl.length===0||sl.indexOf(d.iface)>=0)?' checked':'';
+        h += '<label style="display:block;padding:2px 0;font-size:13px;cursor:pointer;">' +
+            '<input type="checkbox" class="iface-cb" value="'+d.iface+'"'+c+'> ' +
+            d.ssid + ' <span style="color:#667;font-size:11px;">('+d.iface+')</span></label>';
+    }
+    document.getElementById('ifaces-list').innerHTML = h || '无可用接口';
+}
+function toggleAllIfaces() {
+    var cbs = document.querySelectorAll('.iface-cb'), all = true;
+    for (var i = 0; i < cbs.length; i++) if (!cbs[i].checked) { all = false; break; }
+    for (var i = 0; i < cbs.length; i++) cbs[i].checked = !all;
+}
 function saveIfaces() {
-    var v = document.getElementById('ifaces-input').value.trim();
-    var b = document.querySelector('#ifaces-input + .btn-save'); if(b)b.disabled=true;
-    if (v) {
-        runCmd('nvram set proxy_ifaces="' + v + '" && nvram commit && echo OK', function(out) {
-            addLog('代理接口: ' + v, 'ok');
-            document.getElementById('ifaces-saved').textContent = v;
-            document.getElementById('ifaces-saved').style.color = '#69f0ae';
-            if(b)b.disabled=false;
-        });
-    } else {
+    var cbs = document.querySelectorAll('.iface-cb'), sel = [];
+    for (var i = 0; i < cbs.length; i++) if (cbs[i].checked) sel.push(cbs[i].value);
+    var v = sel.join(','), allSel = (sel.length === cbs.length && cbs.length > 0);
+    if (allSel || v === '') {
         runCmd('nvram unset proxy_ifaces && nvram commit && echo OK', function(out) {
             addLog('代理接口: 全部', 'ok');
             document.getElementById('ifaces-saved').textContent = '未设置（全部）';
-            document.getElementById('ifaces-saved').style.color = '#667';
-            if(b)b.disabled=false;
+            document.getElementById('ifaces-saved').style.color = '#667'; renderIfaces();
+        });
+    } else {
+        runCmd('nvram set proxy_ifaces="' + v + '" && nvram commit && echo OK', function(out) {
+            addLog('代理接口: ' + v, 'ok');
+            document.getElementById('ifaces-saved').textContent = v;
+            document.getElementById('ifaces-saved').style.color = '#69f0ae'; renderIfaces();
         });
     }
 }
