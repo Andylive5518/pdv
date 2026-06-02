@@ -354,7 +354,10 @@ setup_iptables() {
         -j REDIRECT --to-ports 1088
 
     # 挂入主链（PREROUTING 最先，OUTPUT 在 DNS 规则之后）
-    iptables -t nat -I PREROUTING 1 -i br0 -j "$PROXY_CHAIN"
+    # 计算插入位置：如果已有 physdev RETURN 规则，插在它们之后
+    _pos=$(iptables -t nat -S PREROUTING 2>/dev/null | grep -c 'physdev' || echo 0)
+    _pos=$((_pos + 1))
+    iptables -t nat -I PREROUTING "$_pos" -i br0 -j "$PROXY_CHAIN"
     iptables -t nat -I OUTPUT 2 -j "$PROXY_CHAIN"
 
     log "  iptables done"
