@@ -267,20 +267,8 @@ function saveIfaces() {
 // ===== 更新路由表 =====
 function updateChnroute() {
     var b = document.getElementById('btn-update'); b.disabled = true;
-    addLog('>>> 从 APNIC 下载路由表 ...', '');
-    var cmd = 'mkdir -p /etc/storage/chinadns && ' +
-        'curl -sk --connect-timeout 15 --retry 2 ' +
-        '"http://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest" | ' +
-        'awk \'/CN\\|ipv4/ { printf(\"%s/%d\\n\", $4, 32-log($5)/log(2)) }\' ' +
-        '> /etc/storage/chinadns/chnroute.txt && ' +
-        'echo "已下载 $(wc -l < /etc/storage/chinadns/chnroute.txt) 条 CIDR" && ' +
-        'if ipset list chnroute >/dev/null 2>&1; then ' +
-        '  ipset destroy chnroute 2>/dev/null; ' +
-        '  (echo "create chnroute hash:net"; ' +
-        '   sed "s/^/add chnroute /" /etc/storage/chinadns/chnroute.txt) ' +
-        '  | ipset restore && echo "ipset 已热加载"; ' +
-        'fi';
-    runCmd(cmd, function(out) {
+    addLog('>>> 更新 chnroute ...', '');
+    runCmd('proxy.sh update-chnroute', function(out) {
         addLog(out, ''); b.disabled = false; refreshStatus();
     });
 }

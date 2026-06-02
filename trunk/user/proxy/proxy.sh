@@ -23,6 +23,8 @@ PROXY_IFACES="${proxy_ifaces:-$(nvram get proxy_ifaces)}"
 
 CHNROUTE_TXT="/etc/storage/chinadns/chnroute.txt"
 CHNROUTE_BZ2="/etc_ro/chnroute.bz2"
+# chnroute 下载源：APNIC 数据 (可改为其他 mirror)
+APNIC_URL="${apnic_url:-http://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest}"
 DNSMASQ_CONF="/etc/storage/dnsmasq/dnsmasq.conf"
 PROXY_CHAIN="PROXY"
 TAG="chinadns-proxy"
@@ -418,6 +420,50 @@ load_chnroute() {
     log "  chnroute ipset: $_n CIDRs loaded"
 }
 
+# 从 APNIC 下载最新 chnroute 并热加载 ipset
+download_chnroute() {
+    local _tmpf="/tmp/chnroute_dl_$$"
+    log "Downloading from $APNIC_URL ..."
+    mkdir -p /etc/storage/chinadns
+
+    if ! curl -sk --connect-timeout 15 --retry 2 -o "$_tmpf" "$APNIC_URL"; then
+        rm -f "$_tmpf"
+        die "download failed: $APNIC_URL"
+    fi
+
+    # 提取 CN IPv4 CIDR
+    awk -F'|' '/CN\|ipv4/ { printf("%s/%d\n", $4, 32-log($5)/log(2)) }' "$_tmpf" \
+        > "$CHNROUTE_TXT"
+    rm -f "$_tmpf"
+
+    local _n
+    _n=$(grep -cE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$' "$CHNROUTE_TXT" 2>/dev/null || echo 0)
+    log "Downloaded $_n CIDRs"
+
+    if [ "$_n" -lt 100 ]; then
+        die "parsed only $_n CIDRs (download broken?)"
+    fi
+
+    # 热加载 ipset（如果已存在则重建）
+    if ipset list chnroute >/dev/null 2>&1; then
+        ipset destroy chnroute 2>/dev/null
+    fi
+    {
+        echo "create chnroute hash:net"
+        sed 's/^/add chnroute /' "$CHNROUTE_TXT"
+    } | ipset restore 2>/dev/null || {
+        ipset create chnroute hash:net 2>/dev/null || true
+        local _cidr
+        while IFS= read -r _cidr; do
+            [ -z "$_cidr" ] && continue
+            ipset add chnroute "$_cidr" 2>/dev/null
+        done < "$CHNROUTE_TXT"
+    }
+
+    _n=$(ipset list chnroute 2>/dev/null | grep -c '^[0-9]')
+    log "chnroute ipset: $_n entries (hot-reloaded)"
+}
+
 # ======================== 守护进程 ========================
 start_daemons() {
     local _i _max _pid
@@ -768,8 +814,11 @@ case "$1" in
     scan)
         scan_ifaces
         ;;
+    update-chnroute)
+        download_chnroute
+        ;;
     *)
-        echo "Usage: $0 {start|stop|restart|status|health|fix_iptables|scan}"
+        echo "Usage: $0 {start|stop|restart|status|health|fix_iptables|scan|update-chnroute}"
         exit 1
         ;;
 esac
