@@ -213,16 +213,7 @@ function saveSocks5() {
 // ===== 代理接口 =====
 var ifaceData = [];
 function loadIfaces() {
-    var cmd = 'for i in $(iwconfig 2>/dev/null | grep "^[a-z]" | awk "{print \$1}"); do ' +
-        'case "$i" in apcli*) continue;; esac; ' +
-        's=$(iwconfig "$i" 2>/dev/null | grep ESSID | sed "s/.*ESSID:"//;s/".*//"); ' +
-        '[ -n "$s" ] && echo "$i|$s"; ' +
-        'done; ' +
-        'for i in $(ls /sys/class/net/br0/brif/ 2>/dev/null); do ' +
-        'case "$i" in ra*|rax*|apcli*) continue;; esac; ' +
-        'echo "$i|(有线)"; ' +
-        'done';
-    runCmd(cmd, function(out) {
+    runCmd('proxy.sh scan', function(out) {
         ifaceData = [];
         var lines = out.trim().split('\n');
         for (var i = 0; i < lines.length; i++) {

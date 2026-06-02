@@ -732,6 +732,17 @@ status() {
     echo "DNS fwd: $_n"
 }
 
+# ======================== 扫描接口 (供 Web UI 调用) ========================
+# 输出: iface|ssid (与 scan_wifi 格式一致，追加有线端口)
+scan_ifaces() {
+    scan_wifi
+    local _iface
+    for _iface in $(ls /sys/class/net/br0/brif/ 2>/dev/null); do
+        case "$_iface" in ra*|rai*|apcli*) continue ;; esac
+        printf '%s|(有线)\n' "$_iface"
+    done
+}
+
 # ======================== 入口 ========================
 case "$1" in
     start)
@@ -754,8 +765,11 @@ case "$1" in
     fix_iptables)
         fix_iptables
         ;;
+    scan)
+        scan_ifaces
+        ;;
     *)
-        echo "Usage: $0 {start|stop|restart|status|health|fix_iptables}"
+        echo "Usage: $0 {start|stop|restart|status|health|fix_iptables|scan}"
         exit 1
         ;;
 esac
