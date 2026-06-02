@@ -38,12 +38,12 @@ pid_alive() { pidof "$1" >/dev/null 2>&1; }
 # 输出: iface|ssid
 scan_wifi() {
     local _iface _ssid
-    for _iface in $(iwconfig 2>/dev/null | grep "^[a-z]" | awk '"'"'{print $1}'"'"'); do
+    for _iface in $(iwconfig 2>/dev/null | grep "^[a-z]" | awk '{print $1}'); do
         case "$_iface" in apcli*) continue ;; esac
         ip link show "$_iface" >/dev/null 2>&1 || continue
-        _ssid=$(iwconfig "$_iface" 2>/dev/null | grep ESSID | sed '"'"'s/.*ESSID:"//;s/".*//'"'"')
+        _ssid=$(iwconfig "$_iface" 2>/dev/null | grep ESSID | sed 's/.*ESSID:"//;s/".*//')
         [ -z "$_ssid" ] && continue
-        printf '"'"'%s|%s\n'"'"' "$_iface" "$_ssid"
+        printf '%s|%s\n' "$_iface" "$_ssid"
     done
 }
 
