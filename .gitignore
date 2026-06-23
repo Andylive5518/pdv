@@ -5,5 +5,5 @@ README.md
 *.md
 singbox-proxy.sh
 *.json
-/proxy.sh
 guestwifi.sh
+/proxy.*
